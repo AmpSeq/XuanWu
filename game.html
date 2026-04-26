@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>玄武护湖小卫士</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  background:linear-gradient(135deg,#0d2b1a,#0a3d2b);
+  min-height:100vh; display:flex; flex-direction:column;
+  align-items:center; font-family:'微软雅黑',sans-serif;
+  color:white; padding:10px; user-select:none;
+}
+h1 { font-size:20px; color:#ffd700; letter-spacing:2px;
+     text-shadow:0 0 15px rgba(255,215,0,0.5);
+     padding:8px 0 6px; text-align:center; }
+.game-wrap { display:flex; gap:14px; align-items:flex-start;
+             flex-wrap:wrap; justify-content:center; }
+#gameCanvas { border:3px solid #ffd700; border-radius:10px;
+              box-shadow:0 0 25px rgba(255,215,0,0.3); display:block; }
+.panel { display:flex; flex-direction:column; gap:9px; width:220px; }
+.box { background:rgba(0,0,0,0.5); border-radius:12px; padding:9px 11px; }
+.box-title { font-size:12px; color:#ffd700; margin-bottom:6px;
+             text-align:center; font-weight:bold; }
+.inv-row { display:flex; gap:6px; justify-content:center; }
+.slot { width:44px; height:44px; border:2px dashed #ffd700;
+        border-radius:8px; display:flex; align-items:center;
+        justify-content:center; font-size:20px;
+        background:rgba(255,215,0,0.05); transition:all 0.2s; }
+.slot.filled { border-style:solid; background:rgba(255,215,0,0.18); }
+#statusBox { font-size:12px; text-align:center; line-height:1.8;
+             padding:7px 9px; border-radius:10px;
+             background:rgba(0,0,0,0.4);
+             border:1px solid rgba(255,215,0,0.3); transition:all 0.3s; }
+#statusBox.warn { background:rgba(255,100,0,0.25); border-color:#ff6400; }
+.stat-row { display:flex; justify-content:space-between;
+            font-size:12px; line-height:2; }
+.stat-val { color:#ffd700; font-weight:bold; }
+.dpad { display:grid; grid-template-columns:repeat(3,50px);
+        grid-template-rows:repeat(3,50px);
+        gap:4px; justify-content:center; }
+.dbtn { background:linear-gradient(145deg,#1a5c35,#0d3d22);
+        border:1px solid rgba(255,215,0,0.4); border-radius:10px;
+        font-size:18px; cursor:pointer; color:white;
+        transition:all 0.15s; display:flex;
+        align-items:center; justify-content:center; }
+.dbtn:hover { background:linear-gradient(145deg,#27854e,#1a5c35); transform:scale(1.08); }
+.dbtn:active { transform:scale(0.93); }
+#aiBtn {
+  width:100%; padding:10px;
+  background:linear-gradient(145deg,#7b2fff,#5500cc);
+  border:2px solid #aa66ff; border-radius:12px;
+  color:white; font-size:13px; font-weight:bold;
+  cursor:pointer; transition:all 0.2s;
+  box-shadow:0 0 15px rgba(123,47,255,0.4); letter-spacing:1px;
+}
+#aiBtn:hover { transform:scale(1.03); box-shadow:0 0 25px rgba(123,47,255,0.7); }
+#aiBtn.running {
+  background:linear-gradient(145deg,#cc3300,#991100);
+  border-color:#ff6644; box-shadow:0 0 15px rgba(255,80,0,0.5);
+}
+.legend-item { display:flex; align-items:center; gap:6px;
+               font-size:11px; margin:3px 0; color:#ccc; }
+.ldot { width:14px; height:14px; border-radius:3px; flex-shrink:0; }
+#tipBar { width:100%; max-width:820px; padding:5px 14px;
+          border-radius:8px; background:rgba(255,215,0,0.08);
+          font-size:12px; color:#ffd700; min-height:24px;
+          margin-top:5px; text-align:center; }
+#overlay { position:fixed; inset:0; background:rgba(0,0,0,0.82);
+           display:flex; align-items:center; justify-content:center; z-index:100; }
+#modal { background:linear-gradient(135deg,#0f3d22,#0a2b18);
+         border:2px solid #ffd700; border-radius:18px;
+         padding:28px 34px; text-align:center; max-width:390px;
+         box-shadow:0 0 40px rgba(255,215,0,0.3); }
+#modal h2 { color:#ffd700; font-size:22px; margin-bottom:12px; }
+#modal p  { color:#ccc; font-size:13px; line-height:1.9; }
+.result { color:#fff; font-size:15px; line-height:2.2; margin:12px 0; }
+#startBtn { margin-top:13px; padding:10px 24px; background:#ffd700;
+            color:#0a2b18; border:none; border-radius:8px; font-size:15px;
+            font-weight:bold; cursor:pointer; transition:transform 0.1s; }
+#startBtn:hover { transform:scale(1.05); }
+.lg-grid { display:flex; gap:7px; flex-wrap:wrap; justify-content:center; margin:8px 0; }
+.lg-item { display:flex; align-items:center; gap:4px; font-size:11px; color:#bbb; }
+.lg-dot  { width:12px; height:12px; border-radius:3px; display:inline-block; }
+</style>
+</head>
+<body>
+<h1>🦁 玄武护湖小卫士 —— 垃圾分类挑战</h1>
+<div class="game-wrap">
+  <canvas id="gameCanvas" width="800" height="560"></canvas>
+  <div class="panel">
+    <div id="statusBox">💡 靠近垃圾自动拾取，走到对应颜色垃圾桶投放</div>
+    <div class="box">
+      <div class="box-title">🎒 背包（最多3件）</div>
+      <div class="inv-row">
+        <div class="slot" id="s0"></div>
+        <div class="slot" id="s1"></div>
+        <div class="slot" id="s2"></div>
+      </div>
+    </div>
+    <div class="box">
+      <div class="box-title">📊 本局统计</div>
+      <div class="stat-row"><span>🗑️ 已清理</span>
+        <span class="stat-val"><span id="cntC">0</span>/10件</span></div>
+      <div class="stat-row"><span>✅ 分类正确</span>
+        <span class="stat-val"><span id="cntR">0</span>件</span></div>
+      <div class="stat-row"><span>📏 行走格数</span>
+        <span class="stat-val"><span id="cntP">0</span>格</span></div>
+      <div class="stat-row"><span>⭐ 得分</span>
+        <span class="stat-val"><span id="cntS">0</span></span></div>
+    </div>
+    <button id="aiBtn" onclick="toggleAIDemo()">🤖 AI演示最短路径</button>
+    <div class="box">
+      <div class="box-title">🕹️ 方向控制</div>
+      <div class="dpad">
+        <div></div>
+        <button class="dbtn" onclick="tryMove(0,-1)">⬆️</button>
+        <div></div>
+        <button class="dbtn" onclick="tryMove(-1,0)">⬅️</button>
+        <div style="display:flex;align-items:center;justify-content:center;font-size:10px;color:#666">WASD</div>
+        <button class="dbtn" onclick="tryMove(1,0)">➡️</button>
+        <div></div>
+        <button class="dbtn" onclick="tryMove(0,1)">⬇️</button>
+        <div></div>
+      </div>
+    </div>
+    <div class="box">
+      <div class="box-title">🗺️ 地图图例</div>
+      <div class="legend-item"><div class="ldot" style="background:#3a8fd1"></div>🌊 湖水（不可踩）</div>
+      <div class="legend-item"><div class="ldot" style="background:#3d7a4e"></div>🌿 岸边草地</div>
+      <div class="legend-item"><div class="ldot" style="background:#6ab87a"></div>🏝️ 洲岛（可走）</div>
+      <div class="legend-item"><div class="ldot" style="background:#c8a96e"></div>🌉 桥（可通行）</div>
+      <div class="legend-item"><div class="ldot" style="background:#7b2fff"></div>🤖 AI规划路径</div>
+      <div style="margin-top:5px;font-size:10px;color:#ffd700;line-height:1.8">
+        🔑 上洲路线：<br>
+        <span style="color:#ccc">
+        梁洲/翠洲：北路→col3/col13桥↓<br>
+        梁洲↔翠洲：row3中间桥←→<br>
+        樱洲：西路→col2桥↓<br>
+        樱洲→环洲：row10/11 col5桥↓<br>
+        环洲：南路col5/col8桥↑
+        </span>
+      </div>
+    </div>
+  </div>
+</div>
+<div id="tipBar">💡 方向键/WASD移动 · 🌉过桥到洲岛 · 靠近垃圾拾取 · 找对颜色垃圾桶投放</div>
+
+<div id="overlay">
+  <div id="modal">
+    <h2 id="mTitle">🦁 玄武护湖小卫士</h2>
+    <div id="mBody">
+      <p>小朋友在<b style="color:#ffd700">玄武湖</b>游玩时看到垃圾，<br>一起捡起来正确分类吧！</p>
+      <div class="lg-grid">
+        <div class="lg-item"><div class="lg-dot" style="background:#4CAF50"></div>厨余垃圾</div>
+        <div class="lg-item"><div class="lg-dot" style="background:#2196F3"></div>可回收物</div>
+        <div class="lg-item"><div class="lg-dot" style="background:#F44336"></div>有害垃圾</div>
+        <div class="lg-item"><div class="lg-dot" style="background:#9E9E9E"></div>其他垃圾</div>
+      </div>
+      <p style="text-align:left;padding:0 8px">
+        🌉 <b style="color:#ffd700">桥(棕黄格)</b> 连接岸边和洲岛<br>
+        🆕 梁洲↔翠洲之间有桥相连！<br>
+        📌 最多同时携带 <b style="color:#ffd700">3件</b> 垃圾<br>
+        🤖 点<b style="color:#aa66ff">AI演示</b>可看最短路径！
+      </p>
+    </div>
+    <button id="startBtn" onclick="startGame()">🎮 开始挑战！</button>
+  </div>
+</div>
+
+<script>
+const MAP_TEMPLATE = [[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 2, 0, 3, 1, 1, 1, 1, 1, 1, 1, 1, 1, 3, 0, 0, 0, 0, 2, 0], [0, 0, 1, 4, 4, 4, 4, 4, 4, 1, 4, 4, 4, 4, 1, 0, 0, 0, 0, 0], [0, 0, 1, 4, 4, 4, 4, 4, 4, 3, 4, 4, 4, 4, 1, 0, 0, 0, 0, 0], [0, 0, 1, 4, 4, 4, 4, 4, 4, 1, 4, 4, 4, 4, 1, 0, 0, 0, 0, 0], [0, 0, 0, 3, 1, 1, 1, 1, 1, 1, 1, 1, 1, 3, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 3, 4, 4, 4, 4, 4, 1, 4, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 1, 4, 4, 4, 4, 3, 4, 4, 4, 1, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 1, 4, 4, 4, 4, 1, 4, 4, 4, 1, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 3, 1, 3, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 1, 3, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 1, 4, 4, 4, 4, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 3, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]];
+const BINS_CFG     = [{"col": 2, "row": 0, "typeId": "kitchen", "label": "厨余桶", "site": "神策门", "color": "#4CAF50", "bg": "#2E7D32"}, {"col": 0, "row": 7, "typeId": "recyclable", "label": "可回收桶", "site": "玄武门", "color": "#2196F3", "bg": "#1565C0"}, {"col": 4, "row": 13, "typeId": "hazardous", "label": "有害桶", "site": "鸡鸣寺", "color": "#F44336", "bg": "#B71C1C"}, {"col": 10, "row": 13, "typeId": "other", "label": "其他桶", "site": "解放门", "color": "#9E9E9E", "bg": "#424242"}];
+
+const COLS=20, ROWS=14, CELL=40;
+const TRASH_COUNT=10, MAX_CARRY=3;
+
+// ★ 修改后的洲岛标签：环洲→樱洲，樱洲→菱洲，下方小岛→环洲
+const ISLAND_LABELS=[
+  {text:'梁洲',  c:5.5, r:3,    lake:false},
+  {text:'翠洲',  c:11.5,r:3,    lake:false},
+  {text:'樱洲',  c:4.0, r:8.0,  lake:false},  // 原环洲 → 樱洲
+  {text:'菱洲',  c:9.5, r:8.5,  lake:false},  // 原樱洲 → 菱洲
+  {text:'北湖',  c:8,   r:1.5,  lake:true },
+  {text:'西南湖',c:1.5, r:10,   lake:true },
+  {text:'东南湖',c:11,  r:10,   lake:true },
+];
+
+// 桥标签
+const BRIDGE_LABELS=[
+  {c:3,  r:1,  tip:'→梁洲'},
+  {c:13, r:1,  tip:'→翠洲'},
+  {c:9,  r:3,  tip:'梁洲↔翠洲'},   // ★ 新增
+  {c:3,  r:5,  tip:'←梁洲'},
+  {c:13, r:5,  tip:'←翠洲'},
+  {c:2,  r:7,  tip:'→樱洲'},
+  {c:7,  r:8,  tip:'↔菱洲'},
+  {c:3,  r:10, tip:'←樱洲'},
+  {c:5,  r:10, tip:'↓环洲'},       // ★ 新增
+  {c:5,  r:11, tip:'↓环洲'},       // ★ 新增
+  {c:5,  r:13, tip:'↑环洲'},
+  {c:8,  r:13, tip:'↑环洲'},
+];
+
+const TRASH_TYPES=[
+  {id:'kitchen',    name:'厨余垃圾',color:'#4CAF50',icon:'🍌'},
+  {id:'recyclable', name:'可回收物', color:'#2196F3',icon:'📦'},
+  {id:'hazardous',  name:'有害垃圾',color:'#F44336',icon:'🔋'},
+  {id:'other',      name:'其他垃圾',color:'#9E9E9E',icon:'🧻'},
+];
+
+const canvas=document.getElementById('gameCanvas');
+const ctx=canvas.getContext('2d');
+
+let map,player,inventory,trashItems,bins;
+let totalPath,collected,correctCount,score,gameActive;
+let particles=[];
+let aiActive=false,aiTimer=null,aiSteps=[],aiIdx=0,aiPathTrace=[];
+
+// BFS
+function bfsPath(sc,sr,ec,er,mapData){
+  if(sc===ec&&sr===er) return [];
+  const queue=[[sc,sr,[]]];
+  const visited=new Set([`${sc},${sr}`]);
+  const dirs=[[0,-1],[0,1],[-1,0],[1,0]];
+  while(queue.length){
+    const [c,r,path]=queue.shift();
+    for(const [dc,dr] of dirs){
+      const nc=c+dc,nr=r+dr;
+      if(nc<0||nc>=COLS||nr<0||nr>=ROWS) continue;
+      const k=`${nc},${nr}`;
+      if(visited.has(k)) continue;
+      const cell=mapData[nr][nc];
+      if(cell===1||cell===2) continue;
+      visited.add(k);
+      const np=[...path,[nc,nr]];
+      if(nc===ec&&nr===er) return np;
+      queue.push([nc,nr,np]);
+    }
+  }
+  return null;
+}
+
+// AI贪心规划
+function planAIRoute(){
+  let simC=player.col,simR=player.row;
+  let simInv=[];
+  let simTrash=trashItems.filter(t=>!t.done).map(t=>({...t}));
+  let steps=[];
+  const MAX_ITER=800; let iter=0;
+
+  while((simTrash.length>0||simInv.length>0)&&iter<MAX_ITER){
+    iter++;
+    if(simInv.length<MAX_CARRY&&simTrash.length>0){
+      let best=null,bestDist=Infinity,bestPath=null;
+      for(const t of simTrash){
+        const p=bfsPath(simC,simR,t.col,t.row,map);
+        if(p&&p.length<bestDist){bestDist=p.length;best=t;bestPath=p;}
+      }
+      if(!best) break;
+      for(const [nc,nr] of bestPath){
+        steps.push({col:nc,row:nr,
+          msg:'🤖 AI前往捡 '+best.type.icon+' '+best.type.name,
+          isPickup:false,isDeposit:false});
+      }
+      if(steps.length>0){
+        steps[steps.length-1].isPickup=true;
+        steps[steps.length-1].msg=
+          '✅ AI拾取 '+best.type.icon+' '+best.type.name+
+          '（模拟背包'+(simInv.length+1)+'/3）';
+      } else {
+        steps.push({col:simC,row:simR,
+          msg:'✅ AI拾取 '+best.type.icon+' '+best.type.name,
+          isPickup:true,isDeposit:false});
+      }
+      simInv.push({...best});
+      simTrash=simTrash.filter(t=>t!==best);
+      simC=best.col; simR=best.row;
+    } else if(simInv.length>0){
+      let bestBin=null,bestDist=Infinity,bestPath=null;
+      for(const bin of bins){
+        const hasMatch=simInv.some(i=>i.type.id===bin.typeId);
+        if(!hasMatch) continue;
+        const p=bfsPath(simC,simR,bin.col,bin.row,map);
+        if(p&&p.length<bestDist){bestDist=p.length;bestBin=bin;bestPath=p;}
+      }
+      if(!bestBin){simInv=[];break;}
+      for(const [nc,nr] of bestPath){
+        steps.push({col:nc,row:nr,
+          msg:'🤖 AI前往 '+bestBin.site+' 投放 '+bestBin.label,
+          isPickup:false,isDeposit:false});
+      }
+      const deposited=simInv.filter(i=>i.type.id===bestBin.typeId);
+      simInv=simInv.filter(i=>i.type.id!==bestBin.typeId);
+      if(steps.length>0){
+        steps[steps.length-1].isDeposit=true;
+        steps[steps.length-1].msg=
+          '🎉 AI投放 '+deposited.length+' 件 '+bestBin.label+'！（'+bestBin.site+'）';
+      }
+      simC=bestBin.col; simR=bestBin.row;
+    } else break;
+  }
+  return steps;
+}
+
+function toggleAIDemo(){
+  if(aiActive){stopAI();return;}
+  if(!gameActive){setTip('⚠️ 请先点击「开始挑战」再使用AI演示！');return;}
+  if(trashItems.every(t=>t.done)&&inventory.length===0){
+    setTip('🏁 垃圾已全部清理完毕！');return;
+  }
+  aiSteps=planAIRoute();
+  aiPathTrace=aiSteps.map(s=>({col:s.col,row:s.row}));
+  if(!aiSteps.length){setTip('🤖 AI无法规划路线');return;}
+  aiActive=true; aiIdx=0;
+  const btn=document.getElementById('aiBtn');
+  btn.textContent='⏹️ 停止AI演示'; btn.classList.add('running');
+  setTip('🤖 AI演示中… 共需 '+aiSteps.length+' 步 | 紫色=AI规划路径 | 点「停止」可接管');
+  aiTimer=setInterval(()=>{
+    if(aiIdx>=aiSteps.length){stopAI();endAISummary();return;}
+    const step=aiSteps[aiIdx];
+    player.col=step.col; player.row=step.row;
+    totalPath++;
+    setTip(step.msg);
+    checkCell(); updateHUD(); aiIdx++;
+  },130);
+}
+
+function stopAI(){
+  aiActive=false;
+  if(aiTimer){clearInterval(aiTimer);aiTimer=null;}
+  aiPathTrace=[];
+  const btn=document.getElementById('aiBtn');
+  btn.textContent='🤖 AI演示最短路径'; btn.classList.remove('running');
+  setTip('💡 AI演示已停止，可继续手动挑战！');
+}
+
+function endAISummary(){
+  const btn=document.getElementById('aiBtn');
+  btn.textContent='🤖 AI演示最短路径'; btn.classList.remove('running');
+  setTip('🏁 AI演示完成！共走 '+totalPath+' 格，重新挑战看能不能超越AI！');
+}
+
+function initGame(){
+  map=MAP_TEMPLATE.map(r=>[...r]);
+  inventory=[]; trashItems=[];
+  totalPath=0; collected=0; correctCount=0; score=0;
+  gameActive=false; particles=[];
+  aiActive=false; aiPathTrace=[];
+  if(aiTimer){clearInterval(aiTimer);aiTimer=null;}
+  const btn=document.getElementById('aiBtn');
+  btn.textContent='🤖 AI演示最短路径'; btn.classList.remove('running');
+  player={col:19,row:0};
+  bins=BINS_CFG.map(b=>({...b,type:TRASH_TYPES.find(t=>t.id===b.typeId)}));
+  generateTrash(); updateHUD();
+}
+
+function generateTrash(){
+  trashItems=[]; let tries=0;
+  while(trashItems.length<TRASH_COUNT&&tries<3000){
+    tries++;
+    const c=Math.floor(Math.random()*COLS);
+    const r=Math.floor(Math.random()*ROWS);
+    if(map[r][c]!==0) continue;
+    if(bins.some(b=>b.col===c&&b.row===r)) continue;
+    if(c===player.col&&r===player.row) continue;
+    if(trashItems.some(t=>Math.abs(t.col-c)+Math.abs(t.row-r)<2)) continue;
+    const type=TRASH_TYPES[Math.floor(Math.random()*TRASH_TYPES.length)];
+    trashItems.push({col:c,row:r,type,done:false});
+  }
+}
+
+function tryMove(dc,dr){
+  if(!gameActive||aiActive) return;
+  const nc=player.col+dc,nr=player.row+dr;
+  if(nc<0||nc>=COLS||nr<0||nr>=ROWS) return;
+  const cell=map[nr][nc];
+  if(cell===1){setTip('🌊 湖水不能踩！找🌉棕黄色桥格子过去');return;}
+  if(cell===2){setTip('🏯 城墙挡路，绕道走！');return;}
+  player.col=nc; player.row=nr; totalPath++;
+  if(cell===3){
+    const bl=BRIDGE_LABELS.find(b=>b.c===nc&&b.r===nr);
+    if(bl) setTip('🌉 正在过桥 '+bl.tip+'，继续走！');
+  }
+  checkCell(); updateHUD();
+}
+
+function checkCell(){
+  if(inventory.length<MAX_CARRY){
+    const idx=trashItems.findIndex(t=>!t.done&&t.col===player.col&&t.row===player.row);
+    if(idx!==-1){
+      const item=trashItems[idx];
+      item.done=true; inventory.push(item);
+      spawnParticles(player.col,player.row,item.type.color,6);
+      if(!aiActive)
+        setTip('✅ 捡到 '+item.type.icon+' '+item.type.name+
+               '（'+inventory.length+'/3）— 送到对应颜色垃圾桶！');
+    }
+  } else if(!aiActive){
+    setTip('🎒 背包满了！先去投放垃圾再回来捡');
+  }
+  const bin=bins.find(b=>b.col===player.col&&b.row===player.row);
+  if(bin&&inventory.length>0){
+    const correct=inventory.filter(i=>i.type.id===bin.typeId);
+    const wrong  =inventory.filter(i=>i.type.id!==bin.typeId);
+    if(correct.length>0){
+      collected+=correct.length; correctCount+=correct.length;
+      score+=correct.length*120; inventory=wrong;
+      spawnParticles(player.col,player.row,bin.type.color,12);
+      if(!aiActive){
+        if(wrong.length>0)
+          setTip('⚠️ 投对 '+correct.length+' 件，还有 '+wrong.length+' 件找对应桶！');
+        else
+          setTip('🎉 投放 '+correct.length+' 件 '+bin.label+' 成功！+'+correct.length*120+'分');
+      }
+    } else if(!aiActive){
+      setTip('❌ 这是['+bin.label+'('+bin.type.name+')]，背包里没有这类垃圾！');
+    }
+    if(collected>=TRASH_COUNT) setTimeout(endGame,500);
+  }
+}
+
+function draw(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  const now=Date.now();
+
+  for(let r=0;r<ROWS;r++){
+    for(let c=0;c<COLS;c++){
+      const px=c*CELL,py=r*CELL,cell=map[r][c];
+      ctx.save();
+      if(cell===1){
+        const w=Math.sin(now/900+c*0.4+r*0.6)*0.07+0.80;
+        ctx.fillStyle=`rgba(45,130,200,${w})`;
+        ctx.fillRect(px,py,CELL,CELL);
+        ctx.strokeStyle='rgba(100,185,240,0.20)';ctx.lineWidth=1;
+        ctx.beginPath();
+        ctx.moveTo(px,py+CELL*0.45+Math.sin(now/700+c)*2);
+        ctx.bezierCurveTo(
+          px+CELL*0.33,py+CELL*0.40+Math.sin(now/600+c)*2,
+          px+CELL*0.67,py+CELL*0.50+Math.sin(now/800+c+1)*2,
+          px+CELL,py+CELL*0.45+Math.sin(now/700+c+2)*2);
+        ctx.stroke();
+      } else if(cell===2){
+        ctx.fillStyle='#4a3828';ctx.fillRect(px,py,CELL,CELL);
+        ctx.fillStyle='#6b5240';ctx.fillRect(px+2,py+2,CELL-4,CELL-4);
+      } else if(cell===3){
+        ctx.fillStyle='rgba(45,130,200,0.5)';ctx.fillRect(px,py,CELL,CELL);
+        ctx.fillStyle='#c8a96e';ctx.fillRect(px+3,py+3,CELL-6,CELL-6);
+        ctx.strokeStyle='#a08050';ctx.lineWidth=1;
+        for(let i=0;i<3;i++){
+          ctx.beginPath();ctx.moveTo(px+3,py+8+i*10);
+          ctx.lineTo(px+CELL-3,py+8+i*10);ctx.stroke();
+        }
+        ctx.fillStyle='#7a5c10';
+        [[px+2,py+2],[px+CELL-7,py+2],[px+2,py+CELL-7],[px+CELL-7,py+CELL-7]]
+          .forEach(([x,y])=>ctx.fillRect(x,y,5,5));
+        ctx.fillStyle='rgba(80,50,0,0.55)';ctx.font='7px sans-serif';
+        ctx.textAlign='center';ctx.textBaseline='middle';
+        ctx.fillText('桥',px+CELL/2,py+CELL/2);
+      } else if(cell===4){
+        const sh=((c+r)%2===0)?'#6ab87a':'#5faa6e';
+        ctx.fillStyle=sh;ctx.fillRect(px,py,CELL,CELL);
+        if((c*5+r*7)%4===0){
+          ctx.strokeStyle='rgba(30,100,40,0.4)';ctx.lineWidth=1;
+          ctx.beginPath();ctx.moveTo(px+8,py+CELL-4);ctx.lineTo(px+10,py+CELL-11);ctx.stroke();
+        }
+      } else {
+        const sh=((c+r)%2===0)?'#3d7a4e':'#356b44';
+        ctx.fillStyle=sh;ctx.fillRect(px,py,CELL,CELL);
+        if((c*3+r*11)%7===0){
+          ctx.fillStyle='rgba(50,130,60,0.3)';
+          ctx.fillRect(px+6,py+4,2,8);ctx.fillRect(px+18,py+7,2,6);
+        }
+      }
+      ctx.restore();
+    }
+  }
+
+  // AI路径
+  if(aiPathTrace.length>0&&aiActive){
+    aiPathTrace.slice(aiIdx).forEach((p,i)=>{
+      const alpha=Math.max(0.06,0.32-i*0.003);
+      ctx.fillStyle=`rgba(160,80,255,${alpha})`;
+      ctx.fillRect(p.col*CELL+1,p.row*CELL+1,CELL-2,CELL-2);
+    });
+    if(aiPathTrace.length>aiIdx+1){
+      ctx.save();
+      ctx.strokeStyle='rgba(200,130,255,0.5)';
+      ctx.lineWidth=2;ctx.setLineDash([4,3]);
+      ctx.beginPath();
+      ctx.moveTo(aiPathTrace[aiIdx].col*CELL+CELL/2,aiPathTrace[aiIdx].row*CELL+CELL/2);
+      for(let i=aiIdx+1;i<Math.min(aiIdx+30,aiPathTrace.length);i++){
+        ctx.lineTo(aiPathTrace[i].col*CELL+CELL/2,aiPathTrace[i].row*CELL+CELL/2);
+      }
+      ctx.stroke();ctx.setLineDash([]);ctx.restore();
+    }
+  }
+
+  // 网格
+  ctx.strokeStyle='rgba(0,0,0,0.10)';ctx.lineWidth=0.5;
+  for(let c=0;c<=COLS;c++){
+    ctx.beginPath();ctx.moveTo(c*CELL,0);ctx.lineTo(c*CELL,ROWS*CELL);ctx.stroke();
+  }
+  for(let r=0;r<=ROWS;r++){
+    ctx.beginPath();ctx.moveTo(0,r*CELL);ctx.lineTo(COLS*CELL,r*CELL);ctx.stroke();
+  }
+
+  // 洲岛标签
+  ISLAND_LABELS.forEach(l=>{
+    ctx.save();
+    ctx.font=l.lake?'9px sans-serif':'bold 11px sans-serif';
+    ctx.fillStyle=l.lake?'rgba(150,205,255,0.45)':'rgba(255,245,190,0.88)';
+    ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(l.text,l.c*CELL,l.r*CELL);
+    ctx.restore();
+  });
+
+  // 地标
+  [{t:'神策门',c:2,r:0,col:'#ffd700'},{t:'玄武门',c:0,r:6,col:'#ffd700'},
+   {t:'鸡鸣寺',c:4,r:13,col:'#ffaa44'},{t:'解放门',c:10,r:13,col:'#ffaa44'},
+   {t:'台城',c:1,r:11,col:'#bb8855'}].forEach(lm=>{
+    ctx.save();ctx.fillStyle=lm.col;ctx.font='bold 8px sans-serif';
+    ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(lm.t,lm.c*CELL+CELL/2,lm.r*CELL+CELL/2);ctx.restore();
+  });
+
+  // 垃圾桶
+  bins.forEach(bin=>{
+    const cx=bin.col*CELL+CELL/2,cy=bin.row*CELL+CELL/2;
+    ctx.save();
+    ctx.strokeStyle=bin.type.color+'44';ctx.lineWidth=1.5;ctx.setLineDash([3,3]);
+    ctx.beginPath();ctx.arc(cx,cy,CELL*0.8,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);
+    ctx.shadowColor=bin.type.color;ctx.shadowBlur=14;
+    ctx.fillStyle=bin.bg;ctx.strokeStyle=bin.type.color;ctx.lineWidth=2;
+    ctx.beginPath();ctx.roundRect(cx-13,cy-15,26,24,4);ctx.fill();ctx.stroke();
+    ctx.fillStyle=bin.type.color;
+    ctx.beginPath();ctx.roundRect(cx-15,cy-19,30,8,3);ctx.fill();
+    ctx.shadowBlur=0;
+    ctx.font='12px serif';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(bin.type.icon,cx,cy);
+    ctx.fillStyle='white';ctx.font='bold 7px sans-serif';
+    ctx.fillText(bin.site,cx,cy+14);
+    ctx.fillStyle=bin.type.color;
+    ctx.beginPath();ctx.arc(cx,cy-24,4,0,Math.PI*2);ctx.fill();
+    ctx.restore();
+  });
+
+  // 垃圾
+  trashItems.forEach(item=>{
+    if(item.done) return;
+    const cx=item.col*CELL+CELL/2,cy=item.row*CELL+CELL/2;
+    ctx.save();
+    ctx.strokeStyle=item.type.color+'44';ctx.lineWidth=1;
+    ctx.beginPath();ctx.arc(cx,cy,CELL*0.62,0,Math.PI*2);ctx.stroke();
+    ctx.shadowColor=item.type.color;ctx.shadowBlur=8;
+    ctx.font='16px serif';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(item.type.icon,cx,cy);ctx.shadowBlur=0;
+    ctx.fillStyle=item.type.color;ctx.font='7px sans-serif';
+    ctx.fillText(item.type.name,cx,cy+13);
+    ctx.restore();
+  });
+
+  // 粒子
+  updateParticles();
+  particles.forEach(p=>{
+    ctx.globalAlpha=p.life/p.maxLife;
+    ctx.fillStyle=p.color;ctx.fillRect(p.x-2,p.y-2,4,4);
+  });
+  ctx.globalAlpha=1;
+
+  // 玩家
+  const bx=player.col*CELL+CELL/2,by=player.row*CELL+CELL/2;
+  ctx.save();
+  ctx.shadowColor=aiActive?'#aa66ff':'#ffd700';ctx.shadowBlur=aiActive?25:18;
+  ctx.font='26px serif';ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText(aiActive?'🤖':'🦁',bx,by);ctx.shadowBlur=0;
+  if(inventory.length>0){
+    ctx.fillStyle=aiActive?'#cc88ff':'#ffd700';
+    ctx.font='bold 9px sans-serif';ctx.textAlign='center';
+    ctx.fillText((aiActive?'🤖':'🎒')+inventory.length+'/3',bx,by-20);
+  }
+  if(aiActive&&aiSteps.length>0){
+    ctx.fillStyle='rgba(200,130,255,0.9)';ctx.font='bold 8px sans-serif';
+    ctx.textAlign='center';
+    ctx.fillText('剩余'+(aiSteps.length-aiIdx)+'步',bx,by+22);
+  }
+  ctx.restore();
+  requestAnimationFrame(draw);
+}
+
+function spawnParticles(col,row,color,count){
+  const cx=col*CELL+CELL/2,cy=row*CELL+CELL/2;
+  for(let i=0;i<count;i++){
+    particles.push({x:cx,y:cy,
+      vx:(Math.random()-0.5)*7,vy:(Math.random()-0.5)*7,
+      life:30,maxLife:30,color});
+  }
+}
+function updateParticles(){
+  particles=particles.filter(p=>{
+    p.x+=p.vx;p.y+=p.vy;p.vx*=0.88;p.vy*=0.88;p.life--;return p.life>0;
+  });
+}
+
+function updateHUD(){
+  document.getElementById('cntC').textContent=collected;
+  document.getElementById('cntR').textContent=correctCount;
+  document.getElementById('cntP').textContent=totalPath;
+  document.getElementById('cntS').textContent=score;
+  for(let i=0;i<3;i++){
+    const s=document.getElementById('s'+i);
+    if(i<inventory.length){
+      s.textContent=inventory[i].type.icon;s.className='slot filled';
+      s.style.borderColor=inventory[i].type.color;
+    } else {s.textContent='';s.className='slot';s.style.borderColor='#ffd700';}
+  }
+  const sb=document.getElementById('statusBox');
+  if(aiActive){
+    sb.className='';sb.textContent='🤖 AI演示中… 第'+aiIdx+'/'+aiSteps.length+'步';
+  } else if(inventory.length>=MAX_CARRY){
+    sb.className='warn';sb.textContent='🎒 背包满！走到对应颜色垃圾桶投放';
+  } else {
+    sb.className='';
+    sb.textContent=collected<TRASH_COUNT
+      ?'还有 '+(TRASH_COUNT-collected)+' 件垃圾等你捡！🌿':'✅ 全部清理完毕！';
+  }
+}
+function setTip(msg){document.getElementById('tipBar').textContent=msg;}
+
+function startGame(){
+  initGame();gameActive=true;
+  document.getElementById('overlay').style.display='none';
+  setTip('💡 方向键/WASD移动 · 🌉过桥上洲岛 · 梁洲↔翠洲中间有桥 · 点🤖看AI示范！');
+}
+
+function endGame(){
+  if(aiActive)stopAI();
+  gameActive=false;
+  const acc=Math.round(correctCount/TRASH_COUNT*100);
+  let rank=totalPath<=35?'🏆 路径规划大师！':
+           totalPath<=60?'🥈 护湖小能手！':
+           totalPath<=90?'🥉 认真的小卫士！':'🌱 认真的小卫士！';
+  document.getElementById('mTitle').textContent='🎉 挑战完成！';
+  document.getElementById('mBody').innerHTML=
+    '<div class="result">'+
+    '🗑️ 清理垃圾：<b style="color:#ffd700">'+collected+'/10</b>件<br>'+
+    '✅ 分类正确：<b style="color:#ffd700">'+correctCount+'</b>件（'+acc+'%）<br>'+
+    '📏 行走格数：<b style="color:#ffd700">'+totalPath+'</b>格<br>'+
+    '⭐ 最终得分：<b style="color:#ffd700">'+score+'</b>分<br>'+
+    '<b style="color:#ffd700;font-size:18px">'+rank+'</b>'+
+    '</div><p style="font-size:12px;color:#aaa">💡 先看AI演示学最短路线，再挑战超越AI！</p>';
+  document.getElementById('startBtn').textContent='🔄 再挑战一次';
+  document.getElementById('overlay').style.display='flex';
+}
+
+document.addEventListener('keydown',e=>{
+  if(aiActive)return;
+  const m={'ArrowUp':1,'w':1,'W':1,'ArrowDown':2,'s':2,'S':2,
+           'ArrowLeft':3,'a':3,'A':3,'ArrowRight':4,'d':4,'D':4};
+  const dir=m[e.key];
+  if(dir){e.preventDefault();
+    if(dir===1)tryMove(0,-1);if(dir===2)tryMove(0,1);
+    if(dir===3)tryMove(-1,0);if(dir===4)tryMove(1,0);
+  }
+});
+
+initGame();draw();
+</script>
+</body>
+</html>
